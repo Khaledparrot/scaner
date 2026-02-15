@@ -1,20 +1,17 @@
-const CACHE="qr-scanner-v1";
+const CACHE="qr-tool-v2";
 
 self.addEventListener("install",e=>{
-  e.waitUntil(
-    caches.open(CACHE).then(cache=>{
-      return cache.addAll([
-        "./",
-        "./index.html",
-        "./jsQR.js",
-        "./manifest.json"
-      ]);
-    })
-  );
+ e.waitUntil(
+  caches.open(CACHE).then(c=>c.addAll([
+   "./",
+   "./index.html",
+   "./jsQR.js",
+   "./qrcode.min.js",
+   "./manifest.json"
+  ]))
+ );
 });
 
 self.addEventListener("fetch",e=>{
-  e.respondWith(
-    caches.match(e.request).then(res=> res || fetch(e.request))
-  );
+ e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)));
 });
