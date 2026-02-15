@@ -3,143 +3,168 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>QR Scanner</title>
-
+<title>QR Tool</title>
 <link rel="manifest" href="manifest.json">
 
 <style>
-body{
-    background:#111;
-    color:white;
-    text-align:center;
-    font-family:Arial;
-    margin:0;
+:root{
+ --bg:#0f0f10;
+ --card:#1b1b1d;
+ --border:#2a2a2d;
+ --text:#e5e5e5;
+ --accent:#9a9a9a;
 }
 
-h2{ margin-top:12px; }
+body{
+ margin:0;
+ background:var(--bg);
+ color:var(--text);
+ font-family:system-ui;
+ text-align:center;
+}
+
+.container{
+ max-width:420px;
+ margin:auto;
+ padding:15px;
+}
+
+.card{
+ background:var(--card);
+ border:1px solid var(--border);
+ border-radius:14px;
+ padding:15px;
+ margin-bottom:18px;
+}
+
+h1{
+ font-size:20px;
+ font-weight:600;
+ margin:10px 0 18px;
+}
 
 video{
-    width:95%;
-    max-width:520px;
-    border-radius:14px;
-    margin-top:10px;
-    border:3px solid #00ffcc;
+ width:100%;
+ border-radius:12px;
 }
 
-#result{
-    margin:15px;
-    font-size:18px;
-    padding:12px;
-    background:#222;
-    border-radius:10px;
-    word-wrap:break-word;
-    min-height:40px;
+#scanResult,#genValue{
+ margin-top:12px;
+ font-size:14px;
+ color:var(--accent);
+ word-break:break-all;
+}
+
+input{
+ width:100%;
+ padding:12px;
+ border-radius:10px;
+ border:1px solid var(--border);
+ background:#111;
+ color:white;
+ outline:none;
+ margin-bottom:10px;
 }
 
 button{
-    margin-top:8px;
-    padding:14px 22px;
-    font-size:18px;
-    border:none;
-    border-radius:12px;
-    background:#00ffcc;
-    color:black;
-    font-weight:bold;
+ width:100%;
+ padding:12px;
+ border-radius:10px;
+ border:none;
+ background:#2b2b2f;
+ color:white;
+ font-weight:600;
 }
 
-#status{
-    margin-top:8px;
-    color:#aaa;
-    font-size:14px;
+button:active{ background:#3a3a3f; }
+
+#qrcode{
+ margin-top:10px;
+ display:flex;
+ justify-content:center;
 }
 </style>
 </head>
 
 <body>
+<div class="container">
 
-<h2>📷 QR Scanner</h2>
+<h1>QR Tool</h1>
 
+<!-- SCANNER -->
+<div class="card">
 <video id="video" autoplay playsinline></video>
 <canvas id="canvas" hidden></canvas>
+<div id="scanResult">Scan a QR code</div>
+</div>
 
-<div id="result">Waiting for QR...</div>
-<button id="copyBtn">Copy</button>
-<div id="status">Starting camera...</div>
+<!-- GENERATOR -->
+<div class="card">
+<input id="textInput" placeholder="Enter text to generate QR">
+<button onclick="generateQR()">Generate</button>
+<div id="qrcode"></div>
+<div id="genValue"></div>
+</div>
+
+</div>
 
 <script src="jsQR.js"></script>
+<script src="qrcode.min.js"></script>
 
 <script>
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const result = document.getElementById("result");
-const copyBtn = document.getElementById("copyBtn");
-const statusText = document.getElementById("status");
+/* ---------- SCANNER ---------- */
+const video=document.getElementById("video");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+const scanResult=document.getElementById("scanResult");
+let last="";
 
-let lastText="";
+navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})
+.then(s=>{video.srcObject=s;requestAnimationFrame(scan)});
 
-async function startCamera(){
-try{
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video:{ facingMode:"environment" }
-    });
-    video.srcObject=stream;
-    statusText.innerText="Scanning...";
-    requestAnimationFrame(scanQR);
-}catch{
-    statusText.innerText="Camera permission denied";
-}
-}
+function scan(){
+ if(video.readyState===video.HAVE_ENOUGH_DATA){
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+  const code=jsQR(img.data,img.width,img.height);
 
-function scanQR(){
-    if(video.readyState===video.HAVE_ENOUGH_DATA){
-        canvas.width=video.videoWidth;
-        canvas.height=video.videoHeight;
-
-        ctx.drawImage(video,0,0,canvas.width,canvas.height);
-        const img=ctx.getImageData(0,0,canvas.width,canvas.height);
-
-        const code=jsQR(img.data,img.width,img.height);
-
-        if(code && code.data!==lastText){
-            lastText=code.data;
-            result.innerText=code.data;
-            copyToClipboard(code.data);
-            vibrate();
-            beep();
-        }
-    }
-    requestAnimationFrame(scanQR);
+  if(code && code.data!==last){
+    last=code.data;
+    scanResult.textContent=code.data;
+    navigator.clipboard.writeText(code.data);
+    if(navigator.vibrate) navigator.vibrate(100);
+  }
+ }
+ requestAnimationFrame(scan);
 }
 
-function copyToClipboard(text){
-    if(!text) return;
-    navigator.clipboard.writeText(text);
-    statusText.innerText="Copied ✔";
+/* ---------- GENERATOR ---------- */
+let qr;
+
+function generateQR(){
+ const text=document.getElementById("textInput").value.trim();
+ if(!text) return;
+
+ document.getElementById("qrcode").innerHTML="";
+
+ qr=new QRCode(document.getElementById("qrcode"),{
+  text:text,
+  width:220,
+  height:220,
+  colorDark:"#000000",
+  colorLight:"#ffffff",
+  correctLevel:QRCode.CorrectLevel.M
+ });
+
+ document.getElementById("genValue").textContent=text;
 }
 
-function vibrate(){
-    if(navigator.vibrate) navigator.vibrate(150);
-}
-
-function beep(){
-    const ctx=new AudioContext();
-    const osc=ctx.createOscillator();
-    osc.frequency.value=900;
-    osc.connect(ctx.destination);
-    osc.start();
-    setTimeout(()=>osc.stop(),120);
-}
-
-copyBtn.onclick=()=>copyToClipboard(lastText);
-
-startCamera();
-
-// service worker
+/* service worker */
 if("serviceWorker" in navigator){
-    navigator.serviceWorker.register("sw.js");
+ navigator.serviceWorker.register("sw.js");
 }
 </script>
-
 </body>
 </html>
